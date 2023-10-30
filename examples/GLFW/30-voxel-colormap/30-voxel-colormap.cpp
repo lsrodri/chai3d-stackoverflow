@@ -404,13 +404,16 @@ int main(int argc, char* argv[])
     hapticDevice->setEnableGripperUserSwitch(true);
 
     // define a radius for the virtual tool (sphere)
-    tool->setRadius(0.02);
+    tool->setRadius(0.2);
+
+    tool->setLocalPos(0, -0.5, 0);
 
     // map the physical workspace of the haptic device to a larger virtual workspace.
     tool->setWorkspaceRadius(0.7);
 
     // oriente tool with camera
     tool->setLocalRot(camera->getLocalRot());
+    //object0->setLocalRot(camera->getLocalRot());
 
     // haptic forces are enabled only if small forces are first sent to the device;
     // this mode avoids the force spike that occurs when the application starts when 
@@ -477,7 +480,7 @@ int main(int argc, char* argv[])
     object->setLocalPos(0.0, 0.0, 0.0);
 
     // rotate object
-    object->rotateExtrinsicEulerAnglesDeg(0, 0, 65, C_EULER_ORDER_XYZ);
+    //object->rotateExtrinsicEulerAnglesDeg(0, 0, 65, C_EULER_ORDER_XYZ);
     
     // set the dimensions by assigning the position of the min and max corners
     object->m_minCorner.set(-0.5,-0.5,-0.5);
@@ -587,6 +590,41 @@ int main(int argc, char* argv[])
     // tell the voxel object to load the colour look-up table as a texture
     object->m_colorMap->setImage(boneLUT);
 
+
+    //-------------------------------------
+    // Sphere
+
+    // create a sphere and define its radius
+    //object0 = new cShapeSphere(0.3);
+    object0 = new cShapeBox(0.3, 0.3, 0.3);
+
+    // add object to world
+    world->addChild(object0);
+
+    // set the position of the object at the center of the world
+    object0->setLocalPos(0.0, 0.5, 0.0);
+
+    // load texture map
+    bool fileload;
+    object0->m_texture = cTexture2d::create();
+    fileload = object0->m_texture->loadFromFile(RESOURCE_PATH("../resources/images/spheremap-3.jpg"));
+    if (!fileload)
+    {
+#if defined(_MSVC)
+        fileload = object0->m_texture->loadFromFile("../../../bin/resources/images/spheremap-3.jpg");
+#endif
+    }
+    if (!fileload)
+    {
+        cout << "Error - Texture image failed to load correctly." << endl;
+        close();
+        return (-1);
+    }
+
+    // set graphic properties
+    object0->m_texture->setSphericalMappingEnabled(true);
+    object0->setUseTexture(true);
+    object0->m_material->setWhite();
 
     //--------------------------------------------------------------------------
     // WIDGETS
@@ -885,6 +923,7 @@ void mouseMotionCallback(GLFWwindow* a_window, double a_posX, double a_posY)
 
         // oriente tool with camera
         tool->setLocalRot(camera->getLocalRot());
+        object0->setLocalRot(camera->getLocalRot());
     }
 }
 
@@ -957,150 +996,7 @@ void updateGraphics(void)
 
 void updateHaptics(void)
 {
-    HapticStates state = HAPTIC_IDLE;
-    cGenericObject* selectedObject = NULL;
-    cTransform tool_T_object;
-
-    // simulation in now running
-    simulationRunning  = true;
-    simulationFinished = false;
-
-    // haptic force activation
-    bool flagStart = true;
-    int counter = 0;
-
-    // main haptic simulation loop
-    while(simulationRunning)
-    {
-        /////////////////////////////////////////////////////////////////////////
-        // HAPTIC RENDERING
-        /////////////////////////////////////////////////////////////////////////
-
-        // signal frequency counter
-        freqCounterHaptics.signal(1);
-
-        // compute global reference frames for each object
-        world->computeGlobalPositions(true);
-
-        // update position and orientation of tool
-        tool->updateFromDevice();
-
-        // compute interaction forces
-        tool->computeInteractionForces();
-
-        // check if device remains stuck inside voxel object
-        cVector3d force = tool->getDeviceGlobalForce();
-        if (flagStart)
-        {
-            if (force.length() != 0.0)
-            {
-                tool->initialize();
-                counter = 0;
-            }
-            else
-            {
-                counter++;
-                if (counter > 10)
-                    flagStart = false;
-            }
-        }
-        else
-        {
-            if (force.length() > 10.0)
-            {
-                flagStart = true;
-            }
-        }
-
-
-        /////////////////////////////////////////////////////////////////////////
-        // MANIPULATION
-        /////////////////////////////////////////////////////////////////////////
-
-        // compute transformation from world to tool (haptic device)
-        cTransform world_T_tool = tool->getDeviceGlobalTransform();
-
-        // get status of user switch
-        bool button = tool->getUserSwitch(0);
-
-        //
-        // STATE 1:
-        // Idle mode - user presses the user switch
-        //
-        if ((state == HAPTIC_IDLE) && (button == true))
-        {
-            // check if at least one contact has occurred
-            if (tool->m_hapticPoint->getNumCollisionEvents() > 0)
-            {
-                // get contact event
-                cCollisionEvent* collisionEvent = tool->m_hapticPoint->getCollisionEvent(0);
-
-                // get object from contact event
-                selectedObject = collisionEvent->m_object;
-            }
-            else
-            {
-                selectedObject = object;
-            }
-
-            // get transformation from object
-            cTransform world_T_object = selectedObject->getGlobalTransform();
-
-            // compute inverse transformation from contact point to object 
-            cTransform tool_T_world = world_T_tool;
-            tool_T_world.invert();
-
-            // store current transformation tool
-            tool_T_object = tool_T_world * world_T_object;
-
-            // update state
-            state = HAPTIC_SELECTION;
-        }
-
-
-        //
-        // STATE 2:
-        // Selection mode - operator maintains user switch enabled and moves object
-        //
-        else if ((state == HAPTIC_SELECTION) && (button == true))
-        {
-            // compute new transformation of object in global coordinates
-            cTransform world_T_object = world_T_tool * tool_T_object;
-
-            // compute new transformation of object in local coordinates
-            cTransform parent_T_world = selectedObject->getParent()->getLocalTransform();
-            parent_T_world.invert();
-            cTransform parent_T_object = parent_T_world * world_T_object;
-
-            // assign new local transformation to object
-            selectedObject->setLocalTransform(parent_T_object);
-
-            // set zero forces when manipulating objects
-            tool->setDeviceGlobalForce(0.0, 0.0, 0.0);
-
-            tool->initialize();
-        }
-
-        //
-        // STATE 3:
-        // Finalize Selection mode - operator releases user switch.
-        //
-        else
-        {
-            state = HAPTIC_IDLE;
-        }
-
-
-        /////////////////////////////////////////////////////////////////////////
-        // FINALIZE
-        /////////////////////////////////////////////////////////////////////////
-
-        // send forces to haptic device
-        tool->applyToDevice();  
-    }
     
-    // exit haptics thread
-    simulationFinished = true;
 }
 
 //------------------------------------------------------------------------------
