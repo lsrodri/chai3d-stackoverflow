@@ -2185,8 +2185,10 @@ void cGenericObject::renderSceneGraph(cRenderOptions& a_options)
         //-----------------------------------------------------------------------
 
         glEnable(GL_LIGHTING);
-        glDisable(GL_BLEND);
+        //glDisable(GL_BLEND);
+        glEnable(GL_BLEND);
         glDepthMask(GL_TRUE);
+        glDepthFunc(GL_LEQUAL);
         glEnable(GL_DEPTH_TEST);
         glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);
 
@@ -2285,8 +2287,15 @@ void cGenericObject::renderSceneGraph(cRenderOptions& a_options)
                 if (m_useTransparency)
                 {
                     glEnable(GL_BLEND);
+                    glEnable(GL_CULL_FACE);
+                    glCullFace(GL_BACK);
                     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-                    glDepthMask(GL_FALSE);
+                    glDepthMask(GL_TRUE);
+                    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
                 }
                 else
                 {
