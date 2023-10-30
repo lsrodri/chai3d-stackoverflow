@@ -114,7 +114,7 @@ cShapeSphere* cursor;
 
 // a virtual heart object from a CT scan
 cVoxelObject* object;
-cShapeBox* object0;
+cShapeSphere* object0;
 
 // color lookup tables for the volume
 cImagePtr boneLUT;
@@ -430,6 +430,41 @@ int main(int argc, char* argv[])
     // stiffness properties
     double maxStiffness	= hapticDeviceInfo.m_maxLinearStiffness / workspaceScaleFactor;
 
+    /////////////////////////////////////////////////////////////////////////
+    // OBJECT 0: "MAGNET"
+    /////////////////////////////////////////////////////////////////////////
+
+    // create a sphere and define its radius
+    object0 = new cShapeSphere(0.3);
+
+    // add object to world
+    world->addChild(object0);
+
+    // set the position of the object at the center of the world
+    object0->setLocalPos(1.0, 0, 0.0);
+
+    // load texture map
+    bool fileload;
+    object0->m_texture = cTexture2d::create();
+    fileload = object0->m_texture->loadFromFile(RESOURCE_PATH("../resources/images/spheremap-3.jpg"));
+    if (!fileload)
+    {
+#if defined(_MSVC)
+        fileload = object0->m_texture->loadFromFile("../../../bin/resources/images/spheremap-3.jpg");
+#endif
+    }
+    if (!fileload)
+    {
+        cout << "Error - Texture image failed to load correctly." << endl;
+        close();
+        return (-1);
+    }
+
+    // set graphic properties
+    object0->m_texture->setSphericalMappingEnabled(true);
+    object0->setUseTexture(true);
+    object0->m_material->setWhite();
+
 
     //--------------------------------------------------------------------------
     // CREATE OBJECT
@@ -473,7 +508,9 @@ int main(int argc, char* argv[])
     //object->setRenderingModeIsosurfaceColorMap();   // medium quality
     object->setRenderingModeDVRColorMap();            // high quality
 
+    object->setUseTransparency(true, true);
 
+    
     //--------------------------------------------------------------------------
     // LOAD VOXEL DATA
     //--------------------------------------------------------------------------
